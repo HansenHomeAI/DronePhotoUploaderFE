@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Viewport for proper mobile scaling -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Drone Photos</title>
+  <style>
+    /* ---------------- Shared Styles from Your Existing Page ---------------- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background: #000; /* black */
+      color: #fff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .container {
+      width: 90%;
+      max-width: 600px;
+      margin: 80px auto 40px auto;
+      padding: 20px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+    h1, h2, label {
+      text-shadow: 0 3px 16px rgba(0,0,0,0.8);
+    }
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 35px;
+      text-align: center;
+    }
+    label {
+      font-size: 1rem;
+      font-weight: 400;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .input-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: block;
+      flex: 1;
+    }
+    .input-wrapper input[type="text"],
+    .input-wrapper input[type="email"],
+    .input-wrapper textarea {
+      width: 100%;
+      padding: 12px 15px;
+      font-size: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      outline: none;
+      transition: border 0.2s ease, background 0.2s ease;
+      margin-bottom: 15px;
+    }
+    .input-wrapper textarea {
+      border-radius: 20px;
+      resize: vertical;
+    }
+    .input-wrapper input::placeholder, 
+    .input-wrapper textarea::placeholder {
+      color: #bbb;
+      opacity: 1;
+    }
+    .input-wrapper input:focus,
+    .input-wrapper textarea:focus {
+      border: 1px solid #FF4F00;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Drag & Drop Upload Area */
+    .upload-area {
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      transition: border-color 0.3s ease;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+    .upload-area.dragover {
+      border-color: #FF4F00;
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .upload-area p {
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+    }
+
+    /* Button */
+    .btn {
+      padding: 14px 24px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 999px;
+      background: #FF4F00; /* Default to orange */
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-shadow: 0 1px 10px rgba(0,0,0,0.4);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn:hover {
+      background: #d84400;
+    }
+
+    /* Spinner styling (same as your generator code) */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Progress Bar */
+    .progress-bar {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+      overflow: hidden;
+      height: 12px;
+      margin-top: 15px;
+      margin-bottom: 15px;
+      display: none; /* hidden until upload starts */
+    }
+    .progress-bar-fill {
+      background: #FF4F00;
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        width: 95%;
+        margin: 40px auto;
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Upload your drone photos</h1>
+
+    <!-- Title of property -->
+    <div class="input-wrapper">
+      <input
+        type="text"
+        id="propertyTitle"
+        placeholder="Title of property"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Address of property -->
+    <div class="input-wrapper">
+      <input
+        type="text"
+        id="addressOfProperty"
+        placeholder="Address of property"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Listing description -->
+    <div class="input-wrapper">
+      <textarea
+        id="listingDescription"
+        rows="4"
+        placeholder="Listing description..."
+      ></textarea>
+    </div>
+
+    <!-- Drag & Drop / File Select for .zip -->
+    <div 
+      id="uploadArea" 
+      class="upload-area"
+    >
+      <p>Drag & drop .zip files here, or click to select</p>
+      <p>(Max 5GB total)</p>
+      <input 
+        type="file" 
+        id="fileInput" 
+        accept=".zip"
+        style="display:none"
+      />
+    </div>
+
+    <!-- Email field -->
+    <div class="input-wrapper">
+      <input
+        type="email"
+        id="emailField"
+        placeholder="Your email"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Optional notes -->
+    <div class="input-wrapper">
+      <textarea 
+        id="optionalNotes"
+        rows="3"
+        placeholder="Optional notes (e.g. desired lot lines, tags)..."
+      ></textarea>
+    </div>
+
+    <!-- Upload Button -->
+    <div class="input-row">
+      <button id="uploadBtn" class="btn">
+        Upload photos
+      </button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-bar-fill" id="progressBarFill"></div>
+    </div>
+  </div>
+
+  <script>
+    /********************************************************
+     *  Uploader Front-End Logic
+     *  - Restricts to .zip
+     *  - 5GB limit
+     *  - GETs a pre-signed URL from our backend
+     *  - Actual file upload to S3 with real progress updates
+     ********************************************************/
+
+    const propertyTitle   = document.getElementById('propertyTitle');
+    const addressOfProp   = document.getElementById('addressOfProperty');
+    const listingDesc     = document.getElementById('listingDescription');
+    const uploadArea      = document.getElementById('uploadArea');
+    const fileInput       = document.getElementById('fileInput');
+    const emailField      = document.getElementById('emailField');
+    const optionalNotes   = document.getElementById('optionalNotes');
+    const uploadBtn       = document.getElementById('uploadBtn');
+    const progressBar     = document.getElementById('progressBar');
+    const progressBarFill = document.getElementById('progressBarFill');
+
+    let selectedFile = null;  
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB in bytes
+
+    // Handle drag & drop
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        validateAndSetFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // Handle file selection
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        validateAndSetFile(e.target.files[0]);
+      }
+    });
+
+    function validateAndSetFile(file) {
+      if (
+        file.type !== "application/x-zip-compressed" && 
+        !file.name.toLowerCase().endsWith(".zip")
+      ) {
+        alert("Please upload a .zip file only.");
+        fileInput.value = "";
+        selectedFile = null;
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        alert("File size exceeds 5GB. Please upload a smaller .zip file.");
+        fileInput.value = "";
+        selectedFile = null;
+        return;
+      }
+      selectedFile = file;
+    }
+
+    async function getPresignedUrlFromServer(fileName) {
+      // Gather form data
+      const payload = {
+        propertyTitle: propertyTitle.value.trim(),
+        addressOfProperty: addressOfProp.value.trim(),
+        listingDescription: listingDesc.value.trim(),
+        email: emailField.value.trim(),
+        optionalNotes: optionalNotes.value.trim(),
+        fileName: fileName
+      };
+
+      // Replace this with your actual server endpoint
+      const serverEndpoint = "https://YOUR-API-DOMAIN.com/api/presign";
+
+      // Send a POST request to get a presigned URL
+      const response = await fetch(serverEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to get presigned URL: ${response.status}`);
+      }
+      const data = await response.json();
+      return data; 
+      // data should contain { uploadUrl: "...", fileKey: "..." } or similar
+    }
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile) {
+        alert("Please select a .zip file before uploading.");
+        return;
+      }
+      // Show spinner in button
+      const originalBtnHTML = uploadBtn.innerHTML;
+      uploadBtn.innerHTML = '<div class="spinner"></div>';
+      uploadBtn.disabled = true;
+
+      try {
+        // Request a presigned URL from our backend
+        const { uploadUrl, fileKey } = await getPresignedUrlFromServer(selectedFile.name);
+        if (!uploadUrl) {
+          throw new Error("No presigned URL returned by server.");
+        }
+
+        // Show the progress bar
+        progressBar.style.display = 'block';
+        progressBarFill.style.width = '0%';
+
+        // Upload the file to S3 using the presigned URL
+        await uploadFileToS3(uploadUrl, selectedFile);
+
+        // All done
+        uploadBtn.innerHTML = 'Upload Complete!';
+        alert("Upload completed!");
+      } catch (err) {
+        console.error("Upload error:", err.message);
+        alert("Error uploading file: " + err.message);
+      } finally {
+        // Reset button after a short delay
+        setTimeout(() => {
+          uploadBtn.innerHTML = originalBtnHTML;
+          uploadBtn.disabled = false;
+          progressBar.style.display = 'none';
+          progressBarFill.style.width = '0%';
+        }, 1500);
+      }
+    });
+
+    function uploadFileToS3(url, file) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", url);
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) {
+            const percent = (e.loaded / e.total) * 100;
+            progressBarFill.style.width = percent + "%";
+          }
+        });
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            resolve();
+          } else {
+            reject(new Error("Failed to upload to S3. Status: " + xhr.status));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Network error uploading to S3."));
+        // Important: Ensure you set the correct content type
+        xhr.setRequestHeader("Content-Type", "application/zip");
+        xhr.send(file);
+      });
+    }
+  </script>
+</body>
+</html>

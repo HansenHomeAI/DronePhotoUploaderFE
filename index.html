@@ -160,6 +160,30 @@
       transition: width 0.3s ease;
     }
 
+    /* NEW/CHANGED: Red highlight when missing required fields */
+    .missing-field {
+      border: 2px solid red !important;
+    }
+
+    /* NEW/CHANGED: Close (X) icon in a small white circle */
+    .close-icon {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      line-height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      color: #000;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    .close-icon:hover {
+      background: #ccc;
+    }
+
     @media (max-width: 480px) {
       .container {
         width: 95%;
@@ -207,8 +231,15 @@
       id="uploadArea" 
       class="upload-area"
     >
-      <p>Drag & drop .zip files here, or click to select</p>
+      <p id="uploadPrompt">Drag & drop .zip files here, or click to select</p>
       <p>(Max 5GB total)</p>
+
+      <!-- NEW/CHANGED: This is hidden by default, shown once a file is selected -->
+      <p id="selectedFileDisplay" style="display:none;">
+        Selected file: <span id="selectedFileName"></span>
+        <span id="removeFileBtn" class="close-icon">&times;</span>
+      </p>
+
       <input 
         type="file" 
         id="fileInput" 
@@ -262,7 +293,11 @@
     const addressOfProp   = document.getElementById('addressOfProperty');
     const listingDesc     = document.getElementById('listingDescription');
     const uploadArea      = document.getElementById('uploadArea');
+    const uploadPrompt    = document.getElementById('uploadPrompt');       /* NEW/CHANGED */
     const fileInput       = document.getElementById('fileInput');
+    const selectedFileDisplay = document.getElementById('selectedFileDisplay'); /* NEW/CHANGED */
+    const selectedFileName = document.getElementById('selectedFileName');  /* NEW/CHANGED */
+    const removeFileBtn   = document.getElementById('removeFileBtn');      /* NEW/CHANGED */
     const emailField      = document.getElementById('emailField');
     const optionalNotes   = document.getElementById('optionalNotes');
     const uploadBtn       = document.getElementById('uploadBtn');
@@ -271,6 +306,30 @@
 
     let selectedFile = null;  
     const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB in bytes
+
+    // NEW/CHANGED: Array of required text fields
+    const requiredFields = [propertyTitle, addressOfProp, listingDesc, emailField];
+
+    // NEW/CHANGED: Remove red highlight once user types something
+    requiredFields.forEach(field => {
+      field.addEventListener('input', () => {
+        if (field.value.trim()) {
+          field.classList.remove('missing-field');
+        }
+      });
+    });
+
+    // NEW/CHANGED: If user clicks the "close" icon, reset the file
+    removeFileBtn.addEventListener('click', () => {
+      selectedFile = null;
+      fileInput.value = "";
+      // Hide the selected file display
+      selectedFileDisplay.style.display = "none";
+      // Bring back the original prompt if desired
+      uploadPrompt.style.display = "block";
+      // Also remove red highlight, if any
+      uploadArea.classList.remove('missing-field');
+    });
 
     // Handle drag & drop
     uploadArea.addEventListener('click', () => fileInput.click());
@@ -313,6 +372,16 @@
         return;
       }
       selectedFile = file;
+
+      // NEW/CHANGED: Show file name and remove any red border
+      uploadArea.classList.remove('missing-field');
+
+      // Hide the original prompt text
+      uploadPrompt.style.display = "none";
+      
+      // Show the "Selected file:" text & close icon
+      selectedFileDisplay.style.display = "block";
+      selectedFileName.textContent = file.name;
     }
 
     async function getPresignedUrlFromServer(fileName) {
@@ -344,10 +413,28 @@
     }
 
     uploadBtn.addEventListener('click', async () => {
+      /* NEW/CHANGED: Check if all required fields and file are provided */
+      let missing = false;
+
+      // Check each required text field
+      requiredFields.forEach(field => {
+        if (!field.value.trim()) {
+          field.classList.add('missing-field');
+          missing = true;
+        }
+      });
+
+      // Check if file is selected
       if (!selectedFile) {
-        alert("Please select a .zip file before uploading.");
+        uploadArea.classList.add('missing-field');
+        missing = true;
+      }
+
+      // If anything is missing, do not proceed
+      if (missing) {
         return;
       }
+
       // Show spinner in button
       const originalBtnHTML = uploadBtn.innerHTML;
       uploadBtn.innerHTML = '<div class="spinner"></div>';

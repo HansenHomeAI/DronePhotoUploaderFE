@@ -128,7 +128,7 @@
       background: #d84400;
     }
 
-    /* Spinner styling (same as your generator code) */
+    /* Spinner styling */
     .spinner {
       width: 20px;
       height: 20px;
@@ -293,11 +293,11 @@
     const addressOfProp   = document.getElementById('addressOfProperty');
     const listingDesc     = document.getElementById('listingDescription');
     const uploadArea      = document.getElementById('uploadArea');
-    const uploadPrompt    = document.getElementById('uploadPrompt');       /* NEW/CHANGED */
+    const uploadPrompt    = document.getElementById('uploadPrompt');
     const fileInput       = document.getElementById('fileInput');
-    const selectedFileDisplay = document.getElementById('selectedFileDisplay'); /* NEW/CHANGED */
-    const selectedFileName = document.getElementById('selectedFileName');  /* NEW/CHANGED */
-    const removeFileBtn   = document.getElementById('removeFileBtn');      /* NEW/CHANGED */
+    const selectedFileDisplay = document.getElementById('selectedFileDisplay');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const removeFileBtn   = document.getElementById('removeFileBtn');
     const emailField      = document.getElementById('emailField');
     const optionalNotes   = document.getElementById('optionalNotes');
     const uploadBtn       = document.getElementById('uploadBtn');
@@ -384,34 +384,57 @@
       selectedFileName.textContent = file.name;
     }
 
+    /********************************************************
+     * UPDATED: getPresignedUrlFromServer function
+     ********************************************************/
     async function getPresignedUrlFromServer(fileName, fileType) {
-  const payload = {
-    propertyTitle: propertyTitle.value.trim(),
-    addressOfProperty: addressOfProp.value.trim(),
-    listingDescription: listingDesc.value.trim(),
-    email: emailField.value.trim(),
-    optionalNotes: optionalNotes.value.trim(),
-    fileName: fileName,
-    fileType: fileType // Send fileType to the backend
-  };
+      const payload = {
+        propertyTitle: propertyTitle.value.trim(),
+        addressOfProperty: addressOfProp.value.trim(),
+        listingDescription: listingDesc.value.trim(),
+        email: emailField.value.trim(),
+        optionalNotes: optionalNotes.value.trim(),
+        fileName: fileName,
+        fileType: fileType // Send fileType to the backend
+      };
 
-  const serverEndpoint = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/generate-presigned-url";
+      const serverEndpoint = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/generate-presigned-url";
 
-  const response = await fetch(serverEndpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+      console.log("DEBUG: Sending payload to server:", payload);
 
-  if (!response.ok) {
-    throw new Error(`Failed to get presigned URL: ${response.status}`);
-  }
+      const response = await fetch(serverEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-  const data = await response.json();
-  return data;
-}
+      if (!response.ok) {
+        throw new Error(`Failed to get presigned URL: ${response.status}`);
+      }
 
+      let data;
+      try {
+        data = await response.json();
+      } catch (err) {
+        console.error("Error parsing JSON:", err);
+        throw new Error("Could not parse response from server as JSON.");
+      }
 
+      console.log("DEBUG: Received response from server:", data);
+
+      // Expecting { url: "...", fileKey: "..." } shape
+      if (!data.url) {
+        throw new Error("No 'url' property found in server response.");
+      }
+
+      // Return object in shape that rest of code expects
+      return {
+        uploadUrl: data.url,
+        fileKey: data.fileKey
+      };
+    }
+
+    // Upload Button logic
     uploadBtn.addEventListener('click', async () => {
       /* NEW/CHANGED: Check if all required fields and file are provided */
       let missing = false;
@@ -443,6 +466,8 @@
       try {
         // Request a presigned URL from our backend
         const { uploadUrl, fileKey } = await getPresignedUrlFromServer(selectedFile.name, selectedFile.type);
+
+        // Ensure uploadUrl is valid
         if (!uploadUrl) {
           throw new Error("No presigned URL returned by server.");
         }

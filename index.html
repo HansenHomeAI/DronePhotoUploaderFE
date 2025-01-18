@@ -384,33 +384,33 @@
       selectedFileName.textContent = file.name;
     }
 
-    async function getPresignedUrlFromServer(fileName) {
-      // Gather form data
-      const payload = {
-        propertyTitle: propertyTitle.value.trim(),
-        addressOfProperty: addressOfProp.value.trim(),
-        listingDescription: listingDesc.value.trim(),
-        email: emailField.value.trim(),
-        optionalNotes: optionalNotes.value.trim(),
-        fileName: fileName
-      };
+    async function getPresignedUrlFromServer(fileName, fileType) {
+  const payload = {
+    propertyTitle: propertyTitle.value.trim(),
+    addressOfProperty: addressOfProp.value.trim(),
+    listingDescription: listingDesc.value.trim(),
+    email: emailField.value.trim(),
+    optionalNotes: optionalNotes.value.trim(),
+    fileName: fileName,
+    fileType: fileType // Send fileType to the backend
+  };
 
-      // Replace this with your actual server endpoint
-      const serverEndpoint = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/generate-presigned-url";
+  const serverEndpoint = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/generate-presigned-url";
 
-      // Send a POST request to get a presigned URL
-      const response = await fetch(serverEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to get presigned URL: ${response.status}`);
-      }
-      const data = await response.json();
-      return data; 
-      // data should contain { uploadUrl: "...", fileKey: "..." } or similar
-    }
+  const response = await fetch(serverEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get presigned URL: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data;
+}
+
 
     uploadBtn.addEventListener('click', async () => {
       /* NEW/CHANGED: Check if all required fields and file are provided */
@@ -442,7 +442,7 @@
 
       try {
         // Request a presigned URL from our backend
-        const { uploadUrl, fileKey } = await getPresignedUrlFromServer(selectedFile.name);
+        const { uploadUrl, fileKey } = await getPresignedUrlFromServer(selectedFile.name, selectedFile.type);
         if (!uploadUrl) {
           throw new Error("No presigned URL returned by server.");
         }

@@ -234,7 +234,7 @@
       <p id="uploadPrompt">Drag & drop .zip files here, or click to select</p>
       <p>(Max 5GB total)</p>
 
-      <!-- NEW/CHANGED: This is hidden by default, shown once a file is selected -->
+      <!-- This is hidden by default, shown once a file is selected -->
       <p id="selectedFileDisplay" style="display:none;">
         Selected file: <span id="selectedFileName"></span>
         <span id="removeFileBtn" class="close-icon">&times;</span>
@@ -284,9 +284,9 @@
     /********************************************************
      *  Uploader Front-End Logic
      *  - Restricts to .zip
-     *  - 5GB limit
-     *  - GETs a pre-signed URL from our backend
-     *  - Actual file upload to S3 with real progress updates
+     *  - Up to 5GB file size
+     *  - Multipart upload with chunking
+     *  - Real progress updates
      ********************************************************/
 
     const propertyTitle   = document.getElementById('propertyTitle');
@@ -306,11 +306,12 @@
 
     let selectedFile = null;  
     const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB in bytes
+    const CHUNK_SIZE    = 5 * 1024 * 1024;       // 5MB chunk size
 
-    // NEW/CHANGED: Array of required text fields
+    // Required text fields for your form
     const requiredFields = [propertyTitle, addressOfProp, listingDesc, emailField];
 
-    // NEW/CHANGED: Remove red highlight once user types something
+    // Remove red highlight once user types something
     requiredFields.forEach(field => {
       field.addEventListener('input', () => {
         if (field.value.trim()) {
@@ -319,15 +320,12 @@
       });
     });
 
-    // NEW/CHANGED: If user clicks the "close" icon, reset the file
+    // Reset the file if user clicks the "close" icon
     removeFileBtn.addEventListener('click', () => {
       selectedFile = null;
       fileInput.value = "";
-      // Hide the selected file display
       selectedFileDisplay.style.display = "none";
-      // Bring back the original prompt if desired
       uploadPrompt.style.display = "block";
-      // Also remove red highlight, if any
       uploadArea.classList.remove('missing-field');
     });
 
@@ -373,7 +371,7 @@
       }
       selectedFile = file;
 
-      // NEW/CHANGED: Show file name and remove any red border
+      // Show file name & remove any red border
       uploadArea.classList.remove('missing-field');
 
       // Hide the original prompt text
@@ -385,9 +383,14 @@
     }
 
     /********************************************************
-     * UPDATED: getPresignedUrlFromServer function
+     * Endpoints for multipart in your backend
      ********************************************************/
-    async function getPresignedUrlFromServer(fileName, fileType) {
+    const START_MULTIPART_ENDPOINT   = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/start-multipart-upload";
+    const GET_PRESIGNED_PART_ENDPOINT= "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/get-presigned-url";
+    const COMPLETE_MULTIPART_ENDPOINT= "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/complete-multipart-upload";
+
+    async function startMultipartUpload(fileName, fileType) {
+      // Send any extra fields you want (title, address, notes, etc.) if needed
       const payload = {
         propertyTitle: propertyTitle.value.trim(),
         addressOfProperty: addressOfProp.value.trim(),
@@ -395,65 +398,143 @@
         email: emailField.value.trim(),
         optionalNotes: optionalNotes.value.trim(),
         fileName: fileName,
-        fileType: fileType // Send fileType to the backend
+        fileType: fileType
       };
 
-      const serverEndpoint = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/generate-presigned-url";
-
-      console.log("DEBUG: Sending payload to server:", payload);
-
-      const response = await fetch(serverEndpoint, {
+      const res = await fetch(START_MULTIPART_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to get presigned URL: ${response.status}`);
+      if (!res.ok) {
+        throw new Error("Failed to start multipart upload");
       }
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (err) {
-        console.error("Error parsing JSON:", err);
-        throw new Error("Could not parse response from server as JSON.");
-      }
-
-      console.log("DEBUG: Received response from server:", data);
-
-      // Expecting { url: "...", fileKey: "..." } shape
-      if (!data.url) {
-        throw new Error("No 'url' property found in server response.");
-      }
-
-      // Return object in shape that rest of code expects
-      return {
-        uploadUrl: data.url,
-        fileKey: data.fileKey
-      };
+      return await res.json(); 
+      // Expecting { uploadId, bucketName, objectKey } or similar
     }
 
-    // Upload Button logic
-    uploadBtn.addEventListener('click', async () => {
-      /* NEW/CHANGED: Check if all required fields and file are provided */
-      let missing = false;
+    async function getPresignedUrlForPart(uploadId, bucketName, objectKey, partNumber) {
+      const payload = { uploadId, bucketName, objectKey, partNumber };
 
-      // Check each required text field
+      const res = await fetch(GET_PRESIGNED_PART_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to get presigned URL for part " + partNumber);
+      }
+      return await res.json();
+      // Expect { url: "...", partNumber: X }
+    }
+
+    async function completeMultipartUpload(uploadId, bucketName, objectKey, parts) {
+      const payload = { uploadId, bucketName, objectKey, parts };
+
+      const res = await fetch(COMPLETE_MULTIPART_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to complete multipart upload");
+      }
+      return await res.json();
+    }
+
+    /********************************************************
+     * Upload the file in chunks
+     ********************************************************/
+    async function uploadFileInChunks(file) {
+      // 1. Start the multipart upload
+      const { uploadId, bucketName, objectKey } = await startMultipartUpload(file.name, file.type);
+      console.log("Multipart upload started:", { uploadId, bucketName, objectKey });
+
+      const totalSize   = file.size;
+      let uploadedBytes = 0;
+      let partNumber    = 1;
+      let partsETags    = []; // store { ETag, PartNumber }
+
+      // We slice the file in 5MB chunks (CHUNK_SIZE)
+      let offset = 0;
+      while (offset < totalSize) {
+        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+        const chunkSize = chunk.size;
+
+        // 2. Get pre-signed URL for this part
+        const { url } = await getPresignedUrlForPart(uploadId, bucketName, objectKey, partNumber);
+        // 3. PUT the chunk
+        const eTag = await uploadPart(url, chunk, partNumber);
+        
+        // 4. Keep track of the part number and ETag
+        partsETags.push({ ETag: eTag, PartNumber: partNumber });
+        
+        // Update progress
+        uploadedBytes += chunkSize;
+        const percent = (uploadedBytes / totalSize) * 100;
+        progressBarFill.style.width = percent + "%";
+        console.log(`Uploaded part #${partNumber}: ${percent.toFixed(2)}% done`);
+
+        // Move to next chunk
+        offset += CHUNK_SIZE;
+        partNumber++;
+      }
+
+      // 5. Complete the multipart upload
+      await completeMultipartUpload(uploadId, bucketName, objectKey, partsETags);
+      console.log("Multipart upload completed!");
+    }
+
+    /********************************************************
+     * Upload a single chunk (part) via PUT to the presigned URL
+     * Return the ETag from the response headers
+     ********************************************************/
+    function uploadPart(url, chunk, partNumber) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", url);
+
+        // Track progress for this chunk
+        xhr.upload.addEventListener("error", () => {
+          reject(new Error("Network error uploading part #" + partNumber));
+        });
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            // The ETag is in the response header
+            const eTag = xhr.getResponseHeader("ETag");
+            if (!eTag) {
+              return reject(new Error("No ETag found in upload response for part #" + partNumber));
+            }
+            resolve(eTag);
+          } else {
+            reject(new Error("Failed to upload part #" + partNumber + "; status: " + xhr.status));
+          }
+        };
+
+        // You may want to set the content type for each chunk
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+        xhr.send(chunk);
+      });
+    }
+
+    /********************************************************
+     * Main Upload Button handler
+     ********************************************************/
+    uploadBtn.addEventListener('click', async () => {
+      // Validate required text fields
+      let missing = false;
       requiredFields.forEach(field => {
         if (!field.value.trim()) {
           field.classList.add('missing-field');
           missing = true;
         }
       });
-
-      // Check if file is selected
+      // Check file
       if (!selectedFile) {
         uploadArea.classList.add('missing-field');
         missing = true;
       }
-
-      // If anything is missing, do not proceed
       if (missing) {
         return;
       }
@@ -464,27 +545,19 @@
       uploadBtn.disabled = true;
 
       try {
-        // Request a presigned URL from our backend
-        const { uploadUrl, fileKey } = await getPresignedUrlFromServer(selectedFile.name, selectedFile.type);
-
-        // Ensure uploadUrl is valid
-        if (!uploadUrl) {
-          throw new Error("No presigned URL returned by server.");
-        }
-
         // Show the progress bar
         progressBar.style.display = 'block';
         progressBarFill.style.width = '0%';
 
-        // Upload the file to S3 using the presigned URL
-        await uploadFileToS3(uploadUrl, selectedFile);
+        // Start multipart upload, chunking logic
+        await uploadFileInChunks(selectedFile);
 
         // All done
         uploadBtn.innerHTML = 'Upload Complete!';
         alert("Upload completed!");
       } catch (err) {
-        console.error("Upload error:", err.message);
-        alert("Error uploading file: " + err.message);
+        console.error("Multipart Upload error:", err.message);
+        alert("Error uploading file (multipart): " + err.message);
       } finally {
         // Reset button after a short delay
         setTimeout(() => {
@@ -495,30 +568,6 @@
         }, 1500);
       }
     });
-
-    function uploadFileToS3(url, file) {
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", url);
-        xhr.upload.addEventListener("progress", (e) => {
-          if (e.lengthComputable) {
-            const percent = (e.loaded / e.total) * 100;
-            progressBarFill.style.width = percent + "%";
-          }
-        });
-        xhr.onload = () => {
-          if (xhr.status === 200) {
-            resolve();
-          } else {
-            reject(new Error("Failed to upload to S3. Status: " + xhr.status));
-          }
-        };
-        xhr.onerror = () => reject(new Error("Network error uploading to S3."));
-        // Important: Ensure you set the correct content type
-        xhr.setRequestHeader("Content-Type", "application/zip");
-        xhr.send(file);
-      });
-    }
   </script>
 </body>
 </html>

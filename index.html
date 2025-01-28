@@ -1,1274 +1,575 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <!-- Viewport for proper mobile scaling -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Drone flight path generator</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background: #000; /* black */
-            color: #fff;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        .container {
-            width: 90%;
-            max-width: 600px;
-            margin: 80px auto 40px auto;
-            padding: 20px;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-            position: relative; /* for absolute positioning of tooltips */
-        }
-        h1, h2, label {
-            text-shadow: 0 3px 16px rgba(0,0,0,0.8);
-        }
-        h1 {
-            font-size: 1.8rem;
-            font-weight: 700;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        h2 {
-            font-size: 1.3rem;
-            font-weight: 500;
-            margin-top: 40px;
-            margin-bottom: 15px;
-        }
-        label {
-            font-size: 1rem;
-            font-weight: 400;
-            margin-bottom: 8px;
-            display: block;
-        }
+  <meta charset="UTF-8" />
+  <!-- Viewport for proper mobile scaling -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Drone Photos</title>
+  <style>
+    /* ---------------- Shared Styles from Your Existing Page ---------------- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background: #000; /* black */
+      color: #fff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .container {
+      width: 90%;
+      max-width: 600px;
+      margin: 80px auto 40px auto;
+      padding: 20px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+    h1, h2, label {
+      text-shadow: 0 3px 16px rgba(0,0,0,0.8);
+    }
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 35px;
+      text-align: center;
+    }
+    label {
+      font-size: 1rem;
+      font-weight: 400;
+      margin-bottom: 8px;
+      display: block;
+    }
 
-        .input-wrapper {
-            position: relative;
-            display: block;
-            margin-bottom: 15px;
-            flex: 1;
-        }
-        .input-wrapper input[type="text"],
-        .input-wrapper input[type="number"] {
-            width: 100%;
-            padding: 12px 15px;
-            font-size: 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
-            outline: none;
-            transition: border 0.2s ease, background 0.2s ease;
-        }
-        .input-wrapper input[type="text"]::placeholder,
-        .input-wrapper input[type="number"]::placeholder {
-            color: #bbb;
-            opacity: 1;
-        }
-        .input-wrapper input[type="text"]:focus,
-        .input-wrapper input[type="number"]:focus {
-            border: 1px solid #FF4F00;
-            background: rgba(255, 255, 255, 0.15);
-        }
-        .input-wrapper.hover-active input[type="text"],
-        .input-wrapper.hover-active input[type="number"] {
-            background: rgba(255, 255, 255, 0.3);
-        }
-        .hover-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #000;
-            color: #fff;
-            font-size: 0.9rem;
-            padding: 6px 12px;
-            border-radius: 999px;
-            white-space: nowrap;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-            z-index: 999;
-        }
-        .input-wrapper.hover-active .hover-overlay {
-            opacity: 1;
-        }
+    .input-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
 
-        .ios-toggle-container {
-            display: inline-flex;
-            align-items: center;
-            justify-content: space-between;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 6px 12px;
-            margin-bottom: 15px;
-            position: relative;
-            min-height: 46px;
-            box-sizing: border-box;
-            flex: 0;
-        }
-        .ios-toggle-container .toggle-text {
-            font-size: 1rem;
-            color: #fff;
-            margin-left: 8px;
-        }
-        .toggle-switch {
-            position: relative;
-            width: 50px;
-            height: 24px;
-            flex-shrink: 0;
-        }
-        .toggle-switch input[type="checkbox"] {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #565656; /* OFF state track */
-            border-radius: 34px;
-            transition: 0.4s;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            top: 3px;
-            background-color: white;
-            border-radius: 50%;
-            transition: 0.4s;
-        }
-        .toggle-switch input:checked + .slider {
-            background-color: #FF4F00;
-        }
-        .toggle-switch input:checked + .slider:before {
-            transform: translateX(26px);
-        }
+    .input-wrapper {
+      position: relative;
+      display: block;
+      flex: 1;
+    }
+    .input-wrapper input[type="text"],
+    .input-wrapper input[type="email"],
+    .input-wrapper textarea {
+      width: 100%;
+      padding: 12px 15px;
+      font-size: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      outline: none;
+      transition: border 0.2s ease, background 0.2s ease;
+      margin-bottom: 15px;
+    }
+    .input-wrapper textarea {
+      border-radius: 20px;
+      resize: vertical;
+    }
+    .input-wrapper input::placeholder, 
+    .input-wrapper textarea::placeholder {
+      color: #bbb;
+      opacity: 1;
+    }
+    .input-wrapper input:focus,
+    .input-wrapper textarea:focus {
+      border: 1px solid #FF4F00;
+      background: rgba(255, 255, 255, 0.15);
+    }
 
-        .input-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 10px;
-        }
+    /* Drag & Drop Upload Area */
+    .upload-area {
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      transition: border-color 0.3s ease;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+    .upload-area.dragover {
+      border-color: #FF4F00;
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .upload-area p {
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+    }
 
-        button {
-            padding: 14px 24px;
-            font-size: 1rem;
-            border: none;
-            border-radius: 999px;
-            background: #FF4F00;
-            color: #fff;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 15px;
-            text-shadow: 0 1px 10px rgba(0,0,0,0.4);
-        }
-        button:hover {
-            background: #d84400;
-        }
-        #downloadMasterBtn,
-        .segment-downloads button {
-            margin-top: 8px;
-            margin-right: 8px;
-        }
+    /* Button */
+    .btn {
+      padding: 14px 24px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 999px;
+      background: #FF4F00; /* Default to orange */
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-shadow: 0 1px 10px rgba(0,0,0,0.4);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn:hover {
+      background: #d84400;
+    }
 
-        .pill-toggle {
-            display: inline-block;
-            background-color: #2C2C2C;
-            border-radius: 999px;
-            width: 300px;
-            height: 42px;
-            position: relative;
-            margin: 0 auto 20px auto;
-            border: none;
-            overflow: hidden; /* Ensures fade effect works */
-        }
-        .pill-toggle-selector {
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: calc(100% / 3 - 6px); /* Adjust width dynamically */
-            height: 36px;
-            background-color: #565656;
-            border-radius: 999px;
-            transition: all 0.3s ease;
-        }
+    /* Spinner styling */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
 
-        .pill-toggle-labels {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            height: 100%;
-            user-select: none;
-            cursor: pointer;
-        }
-        .pill-toggle-labels span {
-            flex: 1;
-            text-align: center;
-            font-weight: 500;
-            font-size: 0.95rem;
-            line-height: 42px;
-            color: #fff;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis; /* Adds the fade effect */
-        }
+    /* Progress Bar */
+    .progress-bar {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+      overflow: hidden;
+      height: 12px;
+      margin-top: 15px;
+      margin-bottom: 15px;
+      display: none; /* hidden until upload starts */
+    }
+    .progress-bar-fill {
+      background: #FF4F00;
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
 
-        .pill-toggle[data-mode="standard"] .pill-toggle-selector {
-            left: 3px;
-        }
-        .pill-toggle[data-mode="ranch"] .pill-toggle-selector {
-            left: calc(100% / 3 + 3px);
-        }
-        .pill-toggle[data-mode="advanced"] .pill-toggle-selector {
-            left: calc(2 * (100% / 3) + 3px);
-        }
+    /* NEW/CHANGED: Red highlight when missing required fields */
+    .missing-field {
+      border: 2px solid red !important;
+    }
 
-        @media (max-width: 480px) {
-            .pill-toggle {
-                width: 100%;
-                max-width: 260px;
-            }
-            .pill-toggle-labels span {
-                text-align: left;
-                padding-left: 8px;
-                padding-right: 8px;
-            }
-            .pill-toggle-selector {
-                width: calc(100% / 3 - 6px); /* Ensure proper scaling in smaller screens */
-            }
-        }
+    /* NEW/CHANGED: Close (X) icon in a small white circle */
+    .close-icon {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      line-height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      color: #000;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    .close-icon:hover {
+      background: #ccc;
+    }
 
-        .slider-container {
-            width: 100%;
-            margin: 0 auto 20px auto;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-        }
-        input[type="range"] {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 95%;
-            height: 4px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 999px;
-            outline: none;
-            margin: 0;
-            cursor: pointer;
-            position: relative;
-        }
-        input[type="range"]::-webkit-slider-runnable-track {
-            height: 4px;
-            background: transparent;
-        }
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #FF4F00;
-            cursor: pointer;
-            margin-top: -8px;
-            transition: transform 0.15s ease;
-        }
-        input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-        }
-        input[type="range"]::-webkit-slider-thumb:active {
-            transform: scale(1.2);
-        }
-        input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #FF4F00;
-            cursor: pointer;
-            transition: transform 0.15s ease;
-        }
-        input[type="range"]::-moz-range-thumb:hover {
-            transform: scale(1.1);
-        }
-        input[type="range"]::-moz-range-thumb:active {
-            transform: scale(1.2);
-        }
-        .slider-ticks {
-            pointer-events: none;
-            position: absolute;
-            top: 50%;
-            left: 5%;
-            width: 90%;
-            transform: translateY(-50%);
-            display: flex;
-            justify-content: space-between;
-        }
-        .slider-ticks span {
-            display: inline-block;
-            width: 1px;
-            background: #fff;
-            opacity: 0.8;
-        }
-        .tick-quarter {
-            height: 14px;
-        }
-        .tick-eighth {
-            height: 10px;
-        }
-        .tick-sixteenth {
-            height: 8px;
-        }
-        .tick-thirtysecond {
-            height: 5px;
-        }
-        .slider-labels {
-            width: 95%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 8px;
-            font-size: 1rem;
-            color: #ccc;
-        }
-        #result,
-        #flightTime,
-        #log {
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 10px;
-            padding: 10px 15px;
-            margin-top: 20px;
-            font-size: 0.9rem;
-            color: #fff;
-        }
-        #result {
-            font-weight: 600;
-        }
-        #log {
-            max-height: 250px;
-            overflow-y: auto;
-        }
-        #log strong {
-            color: #FF4F00;
-        }
-
-        .poi-row {
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        .poi-row .poi-row-title {
-            font-size: 0.95rem;
-            margin-bottom: 8px;
-            display: block;
-        }
-        .poi-row-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .delete-poi-button {
-            background-color: rgba(255,255,255,0.1);
-            color: #fff;
-            font-size: 0.9rem;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 999px;
-            padding: 8px 14px;
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-        .delete-poi-button:hover {
-            background-color: rgba(255,255,255,0.2);
-        }
-
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-
-        /* Spinner styling */
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 3px solid #fff;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                width: 95%;
-                margin: 40px auto;
-                padding: 15px;
-                position: relative;
-            }
-        }
-
-        /* =========== INFO ICON & TOOLTIP ADJUSTMENTS =========== */
-        .info-pill-icon {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 999px;
-            padding: 2px 10px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            color: #fff;
-            text-transform: uppercase;
-            user-select: none;
-            position: relative;
-            top: -2px; /* shift up slightly */
-        }
-        .info-pill-icon:hover {
-            background: #FF4F00;
-            color: #fff;
-        }
-
-        .info-wrapper {
-            position: relative;
-            display: inline-block;
-            margin-left: 8px;
-        }
-
-        .info-tooltip {
-            display: none;
-            position: absolute; 
-            width: 90%;  
-            max-width: 540px;
-            background: rgba(0,0,0,0.9);
-            padding: 12px 16px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-            z-index: 99999;
-            font-size: 0.9rem;
-            box-sizing: border-box;
-            white-space: normal; 
-            color: #fff;
-        }
-        .info-tooltip::before {
-            content: "";
-            position: absolute;
-            bottom: 100%; 
-            width: 0; 
-            height: 0; 
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-bottom: 6px solid rgba(0,0,0,0.9);
-            left: var(--arrowOffset, 50%);
-            transform: translateX(-50%);
-        }
-        .info-tooltip.active {
-            display: block;
-        }
-    </style>
+    @media (max-width: 480px) {
+      .container {
+        width: 95%;
+        margin: 40px auto;
+        padding: 15px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
+  <div class="container">
+    <h1>Upload your drone photos</h1>
 
-        <h1>Drone flight path generator</h1>
-
-        <!-- LOCATION SECTION -->
-        <h2>
-            Location
-            <span class="info-wrapper">
-                <span class="info-pill-icon" data-tooltip-target="tooltipLocation">info</span>
-            </span>
-        </h2>
-        <div class="info-tooltip" id="tooltipLocation">
-            <p>This section is all about setting your flight’s <strong>title</strong> and <strong>coordinates</strong>.
-            Make sure you accurately enter latitude/longitude, plus any separate takeoff coordinate if needed.
-            Remember that latitude is positive in the Northern Hemisphere and negative in the Southern Hemisphere, and longitude is negative in the Western Hemisphere and positive in the Eastern Hemisphere. Double-check these signs if you’re near the equator or prime meridian.</p>
-        </div>
-
-        <form id="coordinateForm">
-            <div class="input-row">
-                <div class="input-wrapper" data-label="Title">
-                    <input 
-                        type="text" 
-                        id="title" 
-                        name="title" 
-                        placeholder="Enter title"
-                    >
-                    <div class="hover-overlay"></div>
-                </div>
-                <div class="input-wrapper" data-label="Coordinates">
-                    <input 
-                        type="text" 
-                        id="coordinates" 
-                        name="coordinates" 
-                        placeholder="Enter coordinates (e.g., 40.68920°N, 74.04454°W)"
-                    >
-                    <div class="hover-overlay"></div>
-                </div>
-            </div>
-            <div class="input-wrapper" data-label="Takeoff Coordinates">
-                <input 
-                    type="text" 
-                    id="takeoffCoordinates" 
-                    name="takeoffCoordinates" 
-                    placeholder="Separate takeoff coordinates (optional)"
-                >
-                <div class="hover-overlay"></div>
-            </div>
-
-            <!-- FLIGHT SECTION -->
-            <h2>
-                Flight
-                <span class="info-wrapper">
-                    <span class="info-pill-icon" data-tooltip-target="tooltipFlight">info</span>
-                </span>
-            </h2>
-            <div class="info-tooltip" id="tooltipFlight">
-                <p>Here you can select <strong>Standard</strong> or <strong>Advanced</strong> mode 
-                and fine-tune details like altitude range, loops, radius increments, etc. In Standard mode, a single slider controls the overall flight size. In Advanced mode, you can customize the number of loops, initial radius, and whether increments are exponential. Use the battery capacity to split the flight into multiple segments if needed.</p>
-            </div>
-
-            <!-- Updated pill toggle for 3 modes -->
-            <div class="pill-toggle" id="modeToggle" data-mode="standard">
-                <div class="pill-toggle-selector"></div>
-                <div class="pill-toggle-labels">
-                    <!-- We keep the onclick to 'standard' but label text as 'Residential' -->
-                    <span class="standard-label" onclick="setGeneratorMode('standard')">Residential</span>
-                    <span class="ranch-label" onclick="setGeneratorMode('ranch')">Ranch</span>
-                    <span class="advanced-label" onclick="setGeneratorMode('advanced')">Advanced</span>
-                </div>
-            </div>
-
-            <!-- Residential (formerly Standard) Mode UI -->
-            <div id="standardModeUI" style="display:block;">
-                <div class="slider-container">
-                    <input 
-                        type="range" 
-                        id="pathSizeSlider" 
-                        min="0" 
-                        max="100" 
-                        value="0" 
-                        step="1"
-                    >
-                    <div class="slider-labels">
-                        <span>Smallest flight</span>
-                        <span>Largest flight</span>
-                    </div>
-                </div>
-                <div class="input-row">
-                    <div class="input-wrapper" data-label="Min Height">
-                        <input 
-                            type="number" 
-                            id="minHeight" 
-                            name="minHeight" 
-                            placeholder="Min height (default: 100ft)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                    <div class="input-wrapper" data-label="Max Height">
-                        <input 
-                            type="number" 
-                            id="maxHeight" 
-                            name="maxHeight" 
-                            placeholder="Max height (optional)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                </div>
-                <div class="input-wrapper" data-label="Battery Capacity">
-                    <input 
-                        type="number" 
-                        id="batteryCapacity" 
-                        name="batteryCapacity" 
-                        placeholder="Battery capacity (default: 20min)" 
-                        step="any"
-                    >
-                    <div class="hover-overlay"></div>
-                </div>
-            </div>
-
-            <!-- Ranch Mode UI (modified to remove slider & add Initial Radius) -->
-            <div id="ranchModeUI" style="display:none;">
-                <!-- Remove the slider container for Ranch mode -->
-
-                <div class="input-row">
-                    <div class="input-wrapper" data-label="Min Height">
-                        <input 
-                            type="number" 
-                            id="minHeightRanch" 
-                            name="minHeightRanch" 
-                            placeholder="Min height (default: 100ft)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                    <div class="input-wrapper" data-label="Max Height">
-                        <input 
-                            type="number" 
-                            id="maxHeightRanch" 
-                            name="maxHeightRanch" 
-                            placeholder="Max height (optional)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                </div>
-
-                <div class="input-wrapper" data-label="Battery Capacity">
-                    <input 
-                        type="number" 
-                        id="batteryCapacityRanch" 
-                        name="batteryCapacityRanch" 
-                        placeholder="Battery capacity (default: 20min)" 
-                        step="any"
-                    >
-                    <div class="hover-overlay"></div>
-                </div>
-
-                <!-- New row for Number of Batteries & Initial Radius -->
-                <div class="input-row">
-                    <div class="input-wrapper" data-label="Number of Batteries">
-                        <input 
-                            type="number" 
-                            id="numBatteriesRanch" 
-                            name="numBatteriesRanch" 
-                            placeholder="Number of Batteries"
-                            step="1"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                    <div class="input-wrapper" data-label="Initial Radius">
-                        <input
-                            type="number"
-                            id="initialRadiusRanch"
-                            name="initialRadiusRanch"
-                            placeholder="Initial radius (default: 350ft)"
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Advanced Mode UI -->
-            <div id="advancedModeUI" style="display:none;">
-                <div class="input-row">
-                    <div class="input-wrapper" data-label="Number of Loops">
-                        <input 
-                            type="number" 
-                            id="numLoops" 
-                            name="numLoops" 
-                            placeholder="Loops (default: 3)" 
-                            min="1" 
-                            step="1"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                    <div class="input-wrapper" data-label="Initial Radius">
-                        <input 
-                            type="number" 
-                            id="initialRadius" 
-                            name="initialRadius" 
-                            placeholder="Initial radius (default: 200ft)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                </div>
-                <!-- Radius increment row -->
-                <div class="input-row">
-                    <div class="input-wrapper" data-label="Radius Increment">
-                        <input 
-                            type="number" 
-                            id="radiusIncrement" 
-                            name="radiusIncrement" 
-                            placeholder="Radius increment (default: 50ft)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                    <label class="ios-toggle-container">
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="exponentialRadius">
-                            <span class="slider"></span>
-                        </div>
-                        <span class="toggle-text">Exponential</span>
-                    </label>
-                </div>
-                <!-- Height increment row -->
-                <div class="input-row">
-                    <div class="input-wrapper" data-label="Height Increment">
-                        <input 
-                            type="number" 
-                            id="aglIncrement" 
-                            name="aglIncrement" 
-                            placeholder="Height increment (default: 20ft)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                    <label class="ios-toggle-container">
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="exponentialAGL">
-                            <span class="slider"></span>
-                        </div>
-                        <span class="toggle-text">Exponential</span>
-                    </label>
-                </div>
-                <div class="input-row">
-                    <div class="input-wrapper" data-label="Initial AGL">
-                        <input 
-                            type="number" 
-                            id="initialAGL" 
-                            name="initialAGL" 
-                            placeholder="Min height (default: 150ft)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                    <div class="input-wrapper" data-label="Start Point Altitude">
-                        <input 
-                            type="number" 
-                            id="startPointAltitude" 
-                            name="startPointAltitude" 
-                            placeholder="Start point altitude (default: 70ft)" 
-                            step="any"
-                        >
-                        <div class="hover-overlay"></div>
-                    </div>
-                </div>
-                <div class="input-wrapper" data-label="Battery Capacity">
-                    <input 
-                        type="number" 
-                        id="batteryCapacityAdvanced" 
-                        name="batteryCapacityAdvanced" 
-                        placeholder="Battery capacity (default: 20min)" 
-                        step="any"
-                    >
-                    <div class="hover-overlay"></div>
-                </div>
-            </div>
-
-            <div id="poiSection" style="display:none;">
-                <h2>Points of Interest</h2>
-                <label class="ios-toggle-container">
-                    <div class="toggle-switch">
-                        <input type="checkbox" id="poiModeToggle">
-                        <span class="slider"></span>
-                    </div>
-                    <span class="toggle-text">Use POI Elevation Instead of Gimbal Tilt Control</span>
-                </label>
-            </div>
-            <button type="button" id="addPoiButton" style="display:none;">Add POI</button>
-
-            <!-- DOWNLOAD SECTION -->
-            <h2>
-                Download
-                <span class="info-wrapper">
-                    <span class="info-pill-icon" data-tooltip-target="tooltipDownload">info</span>
-                </span>
-            </h2>
-            <div class="info-tooltip" id="tooltipDownload">
-                <p>After generating, you can download the flight path CSV. If it’s split into segments 
-                (multi-battery missions), each segment will have its own download button. You can then import these CSV files into your preferred flight planning software. If multiple segments are generated, each one picks up where the last segment ended in order to accommodate your battery capacity.</p>
-            </div>
-
-            <button type="submit" id="generateButton">Generate flight path</button>
-            <div id="result"></div>
-            <button id="downloadMasterBtn" style="display:none;">Download Master Flight Path CSV</button>
-            <div id="segmentDownloads" class="segment-downloads" style="display:none;"></div>
-            <div id="flightTime" style="display:none;"></div>
-            <div id="log"></div>
-        </form>
+    <!-- Title of property -->
+    <div class="input-wrapper">
+      <input
+        type="text"
+        id="propertyTitle"
+        placeholder="Title of property"
+        autocomplete="off"
+      />
     </div>
 
-    <script>
-        let poiCount = 0;
-        let hoverTimer = null;
+    <!-- Address of property -->
+    <div class="input-wrapper">
+      <input
+        type="text"
+        id="addressOfProperty"
+        placeholder="Address of property"
+        autocomplete="off"
+      />
+    </div>
 
-        const modeToggle = document.getElementById('modeToggle');
-        const standardModeUI = document.getElementById('standardModeUI');
-        const advancedModeUI = document.getElementById('advancedModeUI');
-        const ranchModeUI = document.getElementById('ranchModeUI');
-        const poiSection = document.getElementById('poiSection');
-        const addPoiButton = document.getElementById('addPoiButton');
+    <!-- Listing description -->
+    <div class="input-wrapper">
+      <textarea
+        id="listingDescription"
+        rows="4"
+        placeholder="Listing description..."
+      ></textarea>
+    </div>
 
-        // 1) Setup the text-field hover logic (0.45s delay).
-        document.querySelectorAll('.input-wrapper').forEach((wrapper) => {
-            const inputElem = wrapper.querySelector('input');
-            const overlay = wrapper.querySelector('.hover-overlay');
-            const labelText = wrapper.getAttribute('data-label') || '';
-            overlay.innerHTML = labelText;
+    <!-- Drag & Drop / File Select for .zip -->
+    <div 
+      id="uploadArea" 
+      class="upload-area"
+    >
+      <p id="uploadPrompt">Drag & drop .zip files here, or click to select</p>
+      <p>(Max 5GB total)</p>
 
-            inputElem.addEventListener('mouseenter', () => {
-                if (inputElem.value.trim() !== '') {
-                    hoverTimer = setTimeout(() => {
-                        wrapper.classList.add('hover-active');
-                    }, 450);
-                }
-            });
-            inputElem.addEventListener('mouseleave', () => {
-                clearTimeout(hoverTimer);
-                wrapper.classList.remove('hover-active');
-            });
-            // If user clicks/focuses, hide the overlay:
-            inputElem.addEventListener('focus', () => {
-                clearTimeout(hoverTimer);
-                wrapper.classList.remove('hover-active');
-            });
+      <!-- This is hidden by default, shown once a file is selected -->
+      <p id="selectedFileDisplay" style="display:none;">
+        Selected file: <span id="selectedFileName"></span>
+        <span id="removeFileBtn" class="close-icon">&times;</span>
+      </p>
+
+      <input 
+        type="file" 
+        id="fileInput" 
+        accept=".zip"
+        style="display:none"
+      />
+    </div>
+
+    <!-- Email field -->
+    <div class="input-wrapper">
+      <input
+        type="email"
+        id="emailField"
+        placeholder="Your email"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Optional notes -->
+    <div class="input-wrapper">
+      <textarea 
+        id="optionalNotes"
+        rows="3"
+        placeholder="Optional notes (e.g. desired lot lines, tags)..."
+      ></textarea>
+    </div>
+
+    <!-- Upload Button -->
+    <div class="input-row">
+      <button id="uploadBtn" class="btn">
+        Upload photos
+      </button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-bar-fill" id="progressBarFill"></div>
+    </div>
+  </div>
+
+  <script>
+    /********************************************************
+     *  Uploader Front-End Logic
+     *  - Restricts to .zip
+     *  - Up to 5GB file size
+     *  - Multipart upload with chunking
+     *  - Real progress updates
+     ********************************************************/
+
+    const propertyTitle   = document.getElementById('propertyTitle');
+    const addressOfProp   = document.getElementById('addressOfProperty');
+    const listingDesc     = document.getElementById('listingDescription');
+    const uploadArea      = document.getElementById('uploadArea');
+    const uploadPrompt    = document.getElementById('uploadPrompt');
+    const fileInput       = document.getElementById('fileInput');
+    const selectedFileDisplay = document.getElementById('selectedFileDisplay');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const removeFileBtn   = document.getElementById('removeFileBtn');
+    const emailField      = document.getElementById('emailField');
+    const optionalNotes   = document.getElementById('optionalNotes');
+    const uploadBtn       = document.getElementById('uploadBtn');
+    const progressBar     = document.getElementById('progressBar');
+    const progressBarFill = document.getElementById('progressBarFill');
+
+    let selectedFile = null;  
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB in bytes
+    const CHUNK_SIZE    = 5 * 1024 * 1024;       // 5MB chunk size
+
+    // Required text fields for your form
+    const requiredFields = [propertyTitle, addressOfProp, listingDesc, emailField];
+
+    // Remove red highlight once user types something
+    requiredFields.forEach(field => {
+      field.addEventListener('input', () => {
+        if (field.value.trim()) {
+          field.classList.remove('missing-field');
+        }
+      });
+    });
+
+    // Reset the file if user clicks the "close" icon
+    removeFileBtn.addEventListener('click', () => {
+      selectedFile = null;
+      fileInput.value = "";
+      selectedFileDisplay.style.display = "none";
+      uploadPrompt.style.display = "block";
+      uploadArea.classList.remove('missing-field');
+    });
+
+    // Handle drag & drop
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        validateAndSetFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // Handle file selection
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        validateAndSetFile(e.target.files[0]);
+      }
+    });
+
+    function validateAndSetFile(file) {
+      if (
+        file.type !== "application/x-zip-compressed" && 
+        !file.name.toLowerCase().endsWith(".zip")
+      ) {
+        alert("Please upload a .zip file only.");
+        fileInput.value = "";
+        selectedFile = null;
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        alert("File size exceeds 5GB. Please upload a smaller .zip file.");
+        fileInput.value = "";
+        selectedFile = null;
+        return;
+      }
+      selectedFile = file;
+
+      // Show file name & remove any red border
+      uploadArea.classList.remove('missing-field');
+
+      // Hide the original prompt text
+      uploadPrompt.style.display = "none";
+      
+      // Show the "Selected file:" text & close icon
+      selectedFileDisplay.style.display = "block";
+      selectedFileName.textContent = file.name;
+    }
+
+    /********************************************************
+     * Endpoints for multipart in your backend
+     ********************************************************/
+    const START_MULTIPART_ENDPOINT   = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/start-multipart-upload";
+    const GET_PRESIGNED_PART_ENDPOINT= "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/get-presigned-url";
+    const COMPLETE_MULTIPART_ENDPOINT= "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/complete-multipart-upload";
+
+    async function startMultipartUpload(fileName, fileType) {
+      // Send any extra fields you want (title, address, notes, etc.) if needed
+      const payload = {
+        propertyTitle: propertyTitle.value.trim(),
+        addressOfProperty: addressOfProp.value.trim(),
+        listingDescription: listingDesc.value.trim(),
+        email: emailField.value.trim(),
+        optionalNotes: optionalNotes.value.trim(),
+        fileName: fileName,
+        fileType: fileType
+      };
+
+      const res = await fetch(START_MULTIPART_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to start multipart upload");
+      }
+      return await res.json(); 
+      // Expecting { uploadId, bucketName, objectKey } or similar
+    }
+
+    async function getPresignedUrlForPart(uploadId, bucketName, objectKey, partNumber) {
+      const payload = { uploadId, bucketName, objectKey, partNumber };
+
+      const res = await fetch(GET_PRESIGNED_PART_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to get presigned URL for part " + partNumber);
+      }
+      return await res.json();
+      // Expect { url: "...", partNumber: X }
+    }
+
+    async function completeMultipartUpload(uploadId, bucketName, objectKey, parts) {
+      const payload = { uploadId, bucketName, objectKey, parts };
+
+      const res = await fetch(COMPLETE_MULTIPART_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to complete multipart upload");
+      }
+      return await res.json();
+    }
+
+    /********************************************************
+     * Upload the file in chunks
+     ********************************************************/
+    async function uploadFileInChunks(file) {
+      // 1. Start the multipart upload
+      const { uploadId, bucketName, objectKey } = await startMultipartUpload(file.name, file.type);
+      console.log("Multipart upload started:", { uploadId, bucketName, objectKey });
+
+      const totalSize   = file.size;
+      let uploadedBytes = 0;
+      let partNumber    = 1;
+      let partsETags    = []; // store { ETag, PartNumber }
+
+      // We slice the file in 5MB chunks (CHUNK_SIZE)
+      let offset = 0;
+      while (offset < totalSize) {
+        const chunk = file.slice(offset, offset + CHUNK_SIZE);
+        const chunkSize = chunk.size;
+
+        // 2. Get pre-signed URL for this part
+        const { url } = await getPresignedUrlForPart(uploadId, bucketName, objectKey, partNumber);
+        // 3. PUT the chunk
+        const eTag = await uploadPart(url, chunk, partNumber);
+        
+        // 4. Keep track of the part number and ETag
+        partsETags.push({ ETag: eTag, PartNumber: partNumber });
+        
+        // Update progress
+        uploadedBytes += chunkSize;
+        const percent = (uploadedBytes / totalSize) * 100;
+        progressBarFill.style.width = percent + "%";
+        console.log(`Uploaded part #${partNumber}: ${percent.toFixed(2)}% done`);
+
+        // Move to next chunk
+        offset += CHUNK_SIZE;
+        partNumber++;
+      }
+
+      // 5. Complete the multipart upload
+      await completeMultipartUpload(uploadId, bucketName, objectKey, partsETags);
+      console.log("Multipart upload completed!");
+    }
+
+    /********************************************************
+     * Upload a single chunk (part) via PUT to the presigned URL
+     * Return the ETag from the response headers
+     ********************************************************/
+    function uploadPart(url, chunk, partNumber) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", url);
+
+        // Track progress for this chunk
+        xhr.upload.addEventListener("error", () => {
+          reject(new Error("Network error uploading part #" + partNumber));
         });
-
-        // 2) Slider fraction => default Advanced values (including exponential radius & height increments).
-        function getAdvancedValuesFromSliderFraction(fraction) {
-            // Loops, initial radius, startAGL, etc. remain linear as before:
-            const loops = Math.round(3 + (17 - 3) * fraction);
-            const initRadius = Math.round(100 + (300 - 100) * fraction);
-
-            // For radiusIncrement and aglIncrement, make them exponential:
-            const radIncExpMin = 20;
-            const radIncExpMax = 80;
-            const radInc = Math.round(radIncExpMin * Math.pow(radIncExpMax / radIncExpMin, fraction));
-
-            const incAGLExpMin = 10;
-            const incAGLExpMax = 50;
-            const incAGL = Math.round(incAGLExpMin * Math.pow(incAGLExpMax / incAGLExpMin, fraction));
-
-            const startAGL = Math.round(100 + (300 - 100) * fraction);
-            const startAlt = Math.round(50 + (150 - 50) * fraction);
-
-            return {
-                loops,
-                initRadius,
-                radInc,
-                incAGL,
-                startAGL,
-                startAlt
-            };
-        }
-
-        function getSliderFraction() {
-            // Only used by Standard & Advanced modes
-            const sliderVal = parseFloat(document.getElementById("pathSizeSlider").value);
-            return sliderVal / 100.0;
-        }
-
-        // 3) Handle mode switching
-        function setGeneratorMode(mode) {
-            if (mode === 'standard') {
-                // "Residential" label, but keep 'standard' references
-                modeToggle.setAttribute('data-mode', 'standard');
-                standardModeUI.style.display = 'block';
-                ranchModeUI.style.display = 'none';
-                advancedModeUI.style.display = 'none';
-                poiSection.style.display = 'none';
-                addPoiButton.style.display = 'none';
-            } else if (mode === 'ranch') {
-                modeToggle.setAttribute('data-mode', 'ranch');
-                standardModeUI.style.display = 'none';
-                ranchModeUI.style.display = 'block';
-                advancedModeUI.style.display = 'none';
-                poiSection.style.display = 'none';
-                addPoiButton.style.display = 'none';
-            } else {
-                // advanced
-                modeToggle.setAttribute('data-mode', 'advanced');
-                standardModeUI.style.display = 'none';
-                ranchModeUI.style.display = 'none';
-                advancedModeUI.style.display = 'block';
-                poiSection.style.display = 'block';
-                addPoiButton.style.display = 'inline-block';
-
-                // If switching to advanced, dynamically set fields based on slider fraction
-                const fraction = getSliderFraction();
-                const advVals = getAdvancedValuesFromSliderFraction(fraction);
-                document.getElementById("numLoops").value = advVals.loops;
-                document.getElementById("initialRadius").value = advVals.initRadius;
-                document.getElementById("radiusIncrement").value = advVals.radInc;
-                document.getElementById("aglIncrement").value = advVals.incAGL;
-                document.getElementById("initialAGL").value = advVals.startAGL;
-                document.getElementById("startPointAltitude").value = advVals.startAlt;
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            // The ETag is in the response header
+            const eTag = xhr.getResponseHeader("ETag");
+            if (!eTag) {
+              return reject(new Error("No ETag found in upload response for part #" + partNumber));
             }
+            resolve(eTag);
+          } else {
+            reject(new Error("Failed to upload part #" + partNumber + "; status: " + xhr.status));
+          }
+        };
+
+        // You may want to set the content type for each chunk
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+        xhr.setRequestHeader("x-amz-acl", "bucket-owner-full-control");
+        
+        xhr.send(chunk);
+      });
+    }
+
+    /********************************************************
+     * Main Upload Button handler
+     ********************************************************/
+    uploadBtn.addEventListener('click', async () => {
+      // Validate required text fields
+      let missing = false;
+      requiredFields.forEach(field => {
+        if (!field.value.trim()) {
+          field.classList.add('missing-field');
+          missing = true;
         }
+      });
+      // Check file
+      if (!selectedFile) {
+        uploadArea.classList.add('missing-field');
+        missing = true;
+      }
+      if (missing) {
+        return;
+      }
 
-        document.getElementById("addPoiButton").addEventListener("click", addPoiRow);
-        function addPoiRow() {
-            poiCount++;
-            const row = document.createElement('div');
-            row.classList.add('poi-row');
+      // Show spinner in button
+      const originalBtnHTML = uploadBtn.innerHTML;
+      uploadBtn.innerHTML = '<div class="spinner"></div>';
+      uploadBtn.disabled = true;
 
-            const poiLabel = document.createElement('span');
-            poiLabel.classList.add('poi-row-title');
-            poiLabel.textContent = `POI ${poiCount}`;
-            row.appendChild(poiLabel);
+      try {
+        // Show the progress bar
+        progressBar.style.display = 'block';
+        progressBarFill.style.width = '0%';
 
-            // POI gimbal tilt
-            const poiAltitudeWrap = document.createElement('div');
-            poiAltitudeWrap.classList.add('input-wrapper');
-            poiAltitudeWrap.setAttribute('data-label', 'POI Gimbal Tilt (degrees)');
-            const poiAltitudeInput = document.createElement('input');
-            poiAltitudeInput.type = 'number';
-            poiAltitudeInput.name = `poiAltitude${poiCount}`;
-            poiAltitudeInput.placeholder = 'POI Gimbal Tilt (°)';
-            poiAltitudeInput.step = 'any';
-            const overlayAlt = document.createElement('div');
-            overlayAlt.classList.add('hover-overlay');
-            poiAltitudeWrap.appendChild(poiAltitudeInput);
-            poiAltitudeWrap.appendChild(overlayAlt);
-            row.appendChild(poiAltitudeWrap);
+        // Start multipart upload, chunking logic
+        await uploadFileInChunks(selectedFile);
 
-            // "From" and "To" fields in one row
-            const loopRangeContainer = document.createElement('div');
-            loopRangeContainer.classList.add('input-row');
-
-            const loopFromWrap = document.createElement('div');
-            loopFromWrap.classList.add('input-wrapper');
-            loopFromWrap.setAttribute('data-label', 'From Loop');
-            const loopFromInput = document.createElement('input');
-            loopFromInput.type = 'number';
-            loopFromInput.name = `poiLoopFrom${poiCount}`;
-            loopFromInput.placeholder = 'From Loop';
-            loopFromInput.min = '1';
-            loopFromInput.step = '1';
-            const overlayFrom = document.createElement('div');
-            overlayFrom.classList.add('hover-overlay');
-            loopFromWrap.appendChild(loopFromInput);
-            loopFromWrap.appendChild(overlayFrom);
-
-            const toLabel = document.createElement('span');
-            toLabel.style.display = 'flex';
-            toLabel.style.alignItems = 'center';
-            toLabel.style.color = '#fff';
-            toLabel.textContent = 'to';
-
-            const loopToWrap = document.createElement('div');
-            loopToWrap.classList.add('input-wrapper');
-            loopToWrap.setAttribute('data-label', 'To Loop');
-            const loopToInput = document.createElement('input');
-            loopToInput.type = 'number';
-            loopToInput.name = `poiLoopTo${poiCount}`;
-            loopToInput.placeholder = 'To Loop';
-            loopToInput.min = '1';
-            loopToInput.step = '1';
-            const overlayTo = document.createElement('div');
-            overlayTo.classList.add('hover-overlay');
-            loopToWrap.appendChild(loopToInput);
-            loopToWrap.appendChild(overlayTo);
-
-            loopRangeContainer.appendChild(loopFromWrap);
-            loopRangeContainer.appendChild(toLabel);
-            loopRangeContainer.appendChild(loopToWrap);
-            row.appendChild(loopRangeContainer);
-
-            const actions = document.createElement('div');
-            actions.classList.add('poi-row-actions');
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = 'Delete POI';
-            deleteBtn.classList.add('delete-poi-button');
-            deleteBtn.addEventListener('click', () => {
-                row.remove();
-            });
-            actions.appendChild(deleteBtn);
-            row.appendChild(actions);
-
-            poiSection.appendChild(row);
-
-            // Re-bind the hover logic for new inputs
-            const newInputs = row.querySelectorAll('.input-wrapper');
-            newInputs.forEach((wrapper) => {
-                const inputElem = wrapper.querySelector('input');
-                const overlay = wrapper.querySelector('.hover-overlay');
-                const labelText = wrapper.getAttribute('data-label') || '';
-                overlay.innerHTML = labelText;
-
-                inputElem.addEventListener('mouseenter', () => {
-                    if (inputElem.value.trim() !== '') {
-                        hoverTimer = setTimeout(() => {
-                            wrapper.classList.add('hover-active');
-                        }, 450);
-                    }
-                });
-                inputElem.addEventListener('mouseleave', () => {
-                    clearTimeout(hoverTimer);
-                    wrapper.classList.remove('hover-active');
-                });
-                inputElem.addEventListener('focus', () => {
-                    clearTimeout(hoverTimer);
-                    wrapper.classList.remove('hover-active');
-                });
-            });
-        }
-
-        document.getElementById("coordinateForm").addEventListener("submit", async function(event) {
-            event.preventDefault();
-
-            const generateBtn = document.getElementById("generateButton");
-            const originalBtnText = generateBtn.textContent;
-
-            // Show spinner, clear the button text, and disable it
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = `<div class="spinner"></div>`;
-
-            const resultDiv = document.getElementById("result");
-            const downloadMasterBtn = document.getElementById("downloadMasterBtn");
-            const flightTimeDiv = document.getElementById("flightTime");
-            const segmentDownloadsDiv = document.getElementById("segmentDownloads");
-            const logDiv = document.getElementById("log");
-            logDiv.innerHTML = '';
-            resultDiv.innerHTML = '';
-
-            // Decide which battery field to read from for standard/advanced:
-            let batteryVal = document.getElementById("batteryCapacity").value.trim();
-            if (modeToggle.getAttribute('data-mode') === 'advanced') {
-                batteryVal = document.getElementById("batteryCapacityAdvanced").value.trim();
-            }
-
-            // Build the payload
-            const payload = {
-                title: document.getElementById("title").value.trim() || 'untitled',
-                coordinates: document.getElementById("coordinates").value.trim(),
-                takeoffCoordinates: document.getElementById("takeoffCoordinates").value.trim(),
-                mode: modeToggle.getAttribute('data-mode'),
-                // The standard/advanced slider fraction:
-                sliderFraction: getSliderFraction(),
-
-                // Standard (or advanced) min/max:
-                minHeight: document.getElementById("minHeight").value.trim(),
-                maxHeight: document.getElementById("maxHeight").value.trim(),
-
-                batteryCapacity: batteryVal,
-
-                // Advanced-specific fields:
-                numLoops: document.getElementById("numLoops").value.trim(),
-                initialRadius: document.getElementById("initialRadius").value.trim(),
-                radiusIncrement: document.getElementById("radiusIncrement").value.trim(),
-                exponentialRadius: document.getElementById("exponentialRadius").checked,
-                aglIncrement: document.getElementById("aglIncrement").value.trim(),
-                exponentialAGL: document.getElementById("exponentialAGL").checked,
-                initialAGL: document.getElementById("initialAGL").value.trim(),
-                startPointAltitude: document.getElementById("startPointAltitude").value.trim(),
-
-                // POI:
-                useGimbalTiltMode: !document.getElementById("poiModeToggle").checked,
-                poiRows: []
-            };
-
-            // Ranch-specific fields (using defaults if blank)
-            if (modeToggle.getAttribute('data-mode') === 'ranch') {
-                payload.minHeightRanch = document.getElementById("minHeightRanch").value.trim();
-                payload.maxHeightRanch = document.getElementById("maxHeightRanch").value.trim();
-                payload.batteryCapacityRanch = document.getElementById("batteryCapacityRanch").value.trim();
-                payload.numBatteriesRanch = document.getElementById("numBatteriesRanch").value.trim();
-                payload.initialRadiusRanch = document.getElementById("initialRadiusRanch").value.trim();
-            }
-
-            // Gather POI data if any
-            const rows = document.getElementsByClassName('poi-row');
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const altVal = row.querySelector(`input[name="poiAltitude${i+1}"]`).value.trim();
-                const loopFrom = row.querySelector(`input[name="poiLoopFrom${i+1}"]`).value.trim();
-                const loopTo = row.querySelector(`input[name="poiLoopTo${i+1}"]`).value.trim();
-                payload.poiRows.push({
-                    altitude: altVal,
-                    loopFrom: loopFrom,
-                    loopTo: loopTo
-                });
-            }
-
-            try {
-                // *** CALL YOUR AWS LAMBDA ENDPOINT HERE ***
-                const lambdaUrl = "https://2sgk99b5pg.execute-api.us-west-2.amazonaws.com/dev/DronePathREST";
-                const response = await fetch(lambdaUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Lambda request failed: ${response.status}`);
-                }
-
-                const rawData = await response.json();
-                const data = typeof rawData.body === "string" ? JSON.parse(rawData.body) : rawData.body;
-
-                if (data && data.logs) {
-                    data.logs.forEach(entry => {
-                        log(entry.title, entry.msg);
-                    });
-                }
-
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                if (data.elevationMsg) {
-                    resultDiv.innerHTML = data.elevationMsg;
-                }
-                if (typeof data.totalFlightTimeMinutes !== "undefined") {
-                    flightTimeDiv.style.display = "block";
-                    flightTimeDiv.innerHTML = `Estimated Total Flight Time: ${data.totalFlightTimeMinutes.toFixed(2)} minutes`;
-                }
-
-                if (data.masterWaypoints && data.masterWaypoints.length) {
-                    downloadMasterBtn.style.display = "inline-block";
-                    const titleSafe = sanitizeTitle(data.title || 'untitled');
-                    downloadMasterBtn.onclick = function() {
-                        downloadCSV(data.masterWaypoints, `${titleSafe}-master.csv`);
-                        log('Download:', `${titleSafe}-master.csv has been downloaded.`);
-                    };
-                } else {
-                    downloadMasterBtn.style.display = "none";
-                }
-
-                if (data.segments && data.segments.length) {
-                    segmentDownloadsDiv.style.display = "block";
-                    segmentDownloadsDiv.innerHTML = `<p>Flight Segments (${data.segments.length}):</p>`;
-                    data.segments.forEach((segment, idx) => {
-                        const btn = document.createElement('button');
-                        btn.textContent = `Download Segment ${idx + 1}`;
-                        btn.style.marginRight = "5px";
-                        const titleSafe = sanitizeTitle(data.title || 'untitled');
-                        btn.onclick = () => {
-                            downloadCSV(segment, `${titleSafe}-segment-${idx + 1}.csv`);
-                            log('Download:', `${titleSafe}-segment-${idx + 1}.csv has been downloaded.`);
-                        };
-                        segmentDownloadsDiv.appendChild(btn);
-                    });
-                } else {
-                    segmentDownloadsDiv.style.display = "none";
-                }
-
-            } catch (error) {
-                resultDiv.innerHTML = `Error: ${error.message}`;
-                log('Error:', error.message);
-                downloadMasterBtn.style.display = "none";
-                flightTimeDiv.style.display = "none";
-                segmentDownloadsDiv.style.display = "none";
-            } finally {
-                generateBtn.innerHTML = originalBtnText;
-                generateBtn.disabled = false;
-            }
-        });
-
-        function log(title, msg) {
-            const logDiv = document.getElementById("log");
-            logDiv.innerHTML += `<strong>${title}</strong> ${msg}\n`;
-        }
-
-        function downloadCSV(waypoints, filename) {
-            let csv = "latitude,longitude,altitude(ft),heading(deg),curvesize(ft),rotationdir,gimbalmode,gimbalpitchangle,altitudemode,speed(m/s),poi_latitude,poi_longitude,poi_altitude(ft),poi_altitudemode,photo_timeinterval,photo_distinterval\n";
-            waypoints.forEach((wp) => {
-                csv += [
-                    wp.latitude,
-                    wp.longitude,
-                    parseFloat(wp.altitude || 0).toFixed(2),
-                    wp.heading,
-                    wp.curvesize,
-                    wp.rotationdir,
-                    wp.gimbalmode,
-                    wp.gimbalpitchangle,
-                    wp.altitudemode,
-                    wp.speed,
-                    wp.poi_latitude,
-                    wp.poi_longitude,
-                    wp.poi_altitude,
-                    wp.poi_altitudemode,
-                    wp.photo_timeinterval,
-                    wp.photo_distinterval
-                ].join(",") + "\n";
-            });
-            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function sanitizeTitle(t) {
-            return t.replace(/[^a-z0-9_\-]/gi, '_');
-        }
-
-        // ===== JS FOR TOOLTIP POSITIONING =====
-        document.addEventListener('click', function(e) {
-            // Select the clicked element and determine if it's an info icon or tooltip
-            const isIcon = e.target.matches('.info-pill-icon');
-            const isTooltip = e.target.closest('.info-tooltip');
-
-            // Get all active tooltips
-            const openTooltips = document.querySelectorAll('.info-tooltip.active');
-
-            // Close all tooltips if clicking outside
-            if (!isIcon && !isTooltip) {
-                openTooltips.forEach(tip => {
-                    tip.classList.remove('active');
-                    tip.style.display = 'none';
-                });
-            }
-
-            // Handle tooltip click
-            if (isIcon) {
-                e.preventDefault();  // Prevent default behavior if any
-                const icon = e.target;
-                const tooltipId = icon.getAttribute('data-tooltip-target');
-                const tooltip = document.getElementById(tooltipId);
-
-                if (tooltip.classList.contains('active')) {
-                    tooltip.classList.remove('active');
-                    tooltip.style.display = 'none';
-                } else {
-                    openTooltips.forEach(tip => {
-                        tip.classList.remove('active');
-                        tip.style.display = 'none';
-                    });
-                    tooltip.classList.add('active');
-                    tooltip.style.display = 'block';
-
-                    // Positioning logic
-                    const containerRect = document.querySelector('.container').getBoundingClientRect();
-                    const iconRect = icon.getBoundingClientRect();
-                    const top = (iconRect.bottom - containerRect.top) + 10;
-                    tooltip.style.top = top + 'px';
-
-                    tooltip.style.left = '50%';
-                    tooltip.style.transform = 'translateX(-50%)';
-
-                    // Adjust arrow positioning
-                    const tooltipRect = tooltip.getBoundingClientRect();
-                    const iconCenterX = iconRect.left + (iconRect.width / 2);
-                    const arrowX = iconCenterX - tooltipRect.left;
-                    tooltip.style.setProperty('--arrowOffset', arrowX + 'px');
-                }
-            }
-        });
-    </script>
+        // All done
+        uploadBtn.innerHTML = 'Upload Complete!';
+        alert("Upload completed!");
+      } catch (err) {
+        console.error("Multipart Upload error:", err.message);
+        alert("Error uploading file (multipart): " + err.message);
+      } finally {
+        // Reset button after a short delay
+        setTimeout(() => {
+          uploadBtn.innerHTML = originalBtnHTML;
+          uploadBtn.disabled = false;
+          progressBar.style.display = 'none';
+          progressBarFill.style.width = '0%';
+        }, 1500);
+      }
+    });
+  </script>
 </body>
 </html>

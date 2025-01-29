@@ -514,7 +514,7 @@
 
         // You may want to set the content type for each chunk
         xhr.setRequestHeader("Content-Type", "application/octet-stream");
-        
+        xhr.setRequestHeader("x-amz-acl", "bucket-owner-full-control");
         xhr.send(chunk);
       });
     }

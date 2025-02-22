@@ -388,6 +388,29 @@
     const START_MULTIPART_ENDPOINT   = "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/start-multipart-upload";
     const GET_PRESIGNED_PART_ENDPOINT= "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/get-presigned-url";
     const COMPLETE_MULTIPART_ENDPOINT= "https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/complete-multipart-upload";
+    
+    // >>> NEW: Save Submission Metadata
+    async function saveSubmissionMetadata(objectKey) {
+      const payload = {
+        email: emailField.value.trim(),
+        propertyTitle: propertyTitle.value.trim(),
+        listingDescription: listingDesc.value.trim(),
+        addressOfProperty: addressOfProp.value.trim(),
+        optionalNotes: optionalNotes.value.trim(),
+        objectKey: objectKey
+      };
+
+      const res = await fetch("https://mismmjgpm3.execute-api.us-west-2.amazonaws.com/prod/save-submission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save submission metadata");
+      }
+      return await res.json();
+    }
 
     async function startMultipartUpload(fileName, fileType) {
       // Send any extra fields you want (title, address, notes, etc.) if needed
@@ -445,6 +468,7 @@
 
     /********************************************************
      * Upload the file in chunks
+     * - Return the objectKey so we can use it later
      ********************************************************/
     async function uploadFileInChunks(file) {
       // 1. Start the multipart upload
@@ -456,7 +480,7 @@
       let partNumber    = 1;
       let partsETags    = []; // store { ETag, PartNumber }
 
-      // We slice the file in 5MB chunks (CHUNK_SIZE)
+      // Slice the file in CHUNK_SIZE chunks
       let offset = 0;
       while (offset < totalSize) {
         const chunk = file.slice(offset, offset + CHUNK_SIZE);
@@ -484,6 +508,9 @@
       // 5. Complete the multipart upload
       await completeMultipartUpload(uploadId, bucketName, objectKey, partsETags);
       console.log("Multipart upload completed!");
+
+      // Return the objectKey so we can save metadata
+      return { objectKey };
     }
 
     /********************************************************
@@ -549,11 +576,16 @@
         progressBarFill.style.width = '0%';
 
         // Start multipart upload, chunking logic
-        await uploadFileInChunks(selectedFile);
+        const result = await uploadFileInChunks(selectedFile);
+
+        // >>> NEW: Save metadata to DynamoDB
+        await saveSubmissionMetadata(result.objectKey);
+        console.log("Submission metadata saved!");
 
         // All done
         uploadBtn.innerHTML = 'Upload Complete!';
         alert("Upload completed!");
+
       } catch (err) {
         console.error("Multipart Upload error:", err.message);
         alert("Error uploading file (multipart): " + err.message);
